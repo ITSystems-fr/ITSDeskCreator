@@ -7,6 +7,8 @@
 {% elif platform == 'android' %}
 <a href='/download?filename={{filename}}-aarch64.apk&uuid={{uuid}}'>{{filename}}-aarch64.apk</a><br>
 <a href='/download?filename={{filename}}-x86_64.apk&uuid={{uuid}}'>{{filename}}-x86_64.apk</a>
+{% elif platform == 'macos' %}
+<a href='/download?filename={{filename}}.dmg&uuid={{uuid}}'>{{filename}}.dmg</a>
 {% else %}
 Error, no file generated
 {% endif %}
