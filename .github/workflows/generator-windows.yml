@@ -166,6 +166,7 @@ jobs:
           name: bridge-artifact
           path: ./
 
+            
       - name: Install ImageMagick on Windows
         run: |
           choco install -y imagemagick.app --no-progress
