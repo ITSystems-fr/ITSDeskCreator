@@ -21,22 +21,6 @@
             padding: 20px;
             overflow-x: hidden;
         }
-        .snowflake {
-            position: fixed;
-            width: 10px;
-            height: 10px;
-            background: white;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-            opacity: 0.8;
-            filter: blur(1px);
-        }
-        @keyframes fall {
-            to {
-                transform: translateY(100vh) rotate(360deg);
-            }
-        }
         .platform {
             display: grid;
             grid-template-columns: 1fr;
@@ -151,7 +135,7 @@
     </style>
 </head>
 <body>
-    <h1><i class="fas fa-cogs"></i> RustDesk Custom Client Builder</h1>
+    <h1><i class="fas fa-cogs"></i> RustDesk Builder By VenimK</h1>
     <form action="/generator" method="post" enctype="multipart/form-data">
         <div class="platform">
             <h2><i class="fas fa-desktop"></i> Select Platform</h2>
@@ -298,43 +282,6 @@
                 reader.readAsDataURL(input.files[0]);
             }
         }
-        
-        // Snow Animation
-        function createSnowflake() {
-            const snowflake = document.createElement('div');
-            snowflake.classList.add('snowflake');
-            
-            // Randomize snowflake properties
-            const size = Math.random() * 5 + 2; // 2-7px
-            snowflake.style.width = `${size}px`;
-            snowflake.style.height = `${size}px`;
-            snowflake.style.left = `${Math.random() * window.innerWidth}px`;
-            snowflake.style.top = '-10px';
-            
-            // Randomize fall speed and horizontal movement
-            const duration = Math.random() * 10 + 5; // 5-15 seconds
-            const horizontalOffset = Math.random() * 100 - 50; // -50 to 50px
-            
-            snowflake.style.animation = `fall ${duration}s linear infinite`;
-            snowflake.style.animationDelay = `-${Math.random() * duration}s`;
-            snowflake.style.transform = `translateX(${horizontalOffset}px)`;
-            
-            document.body.appendChild(snowflake);
-            
-            // Remove snowflake after it falls
-            setTimeout(() => {
-                snowflake.remove();
-            }, duration * 1000);
-        }
-
-        // Create multiple snowflakes
-        function startSnowfall() {
-            // Create snowflakes at intervals
-            setInterval(createSnowflake, 200);
-        }
-
-        // Start snowfall when page loads
-        window.addEventListener('load', startSnowfall);
     </script>
 </body>
 </html>
