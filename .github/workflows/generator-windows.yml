@@ -510,9 +510,9 @@ jobs:
        - name: Add MSBuild to PATH
          uses: microsoft/setup-msbuild@v2
 
-      - name: Build msi
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
+       - name: Build msi
+         if: env.UPLOAD_ARTIFACT == 'true'
+         run: |
           pushd ./res/msi
           python preprocess.py --arp -d ../../rustdesk
           nuget restore msi.sln
