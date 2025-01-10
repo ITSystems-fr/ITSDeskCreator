@@ -507,8 +507,8 @@ jobs:
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
 
-       - name: Add MSBuild to PATH
-         uses: microsoft/setup-msbuild@v2
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
 
        #- name: Build msi
        #  if: env.UPLOAD_ARTIFACT == 'true'
