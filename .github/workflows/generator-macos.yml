@@ -2,7 +2,7 @@ name: Custom macOS Client Generator
 run-name: Custom macOS Client Generator
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: generator-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 on: 
