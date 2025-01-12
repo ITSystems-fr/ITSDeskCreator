@@ -16,9 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: "3.27.1"
+  FLUTTER_VERSION: "3.16.9"  # Using a more stable version
   FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
-  RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503
+  RUST_VERSION: "1.75"
+  DART_VERSION: "3.2.6"  # Adding explicit Dart version
 
 jobs:
   generate_bridge:
@@ -58,6 +59,11 @@ jobs:
           shared-key: "bridge-build"
           cache-directories: "~/.cargo/bin/flutter_rust_bridge_codegen"
 
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_VERSION }}
+
       - name: Cache Bridge
         id: cache-bridge
         uses: actions/cache@v3
@@ -84,15 +90,26 @@ jobs:
         if: steps.cache-bridge.outputs.cache-hit != 'true'
         shell: bash
         run: |
+          # Clean any existing artifacts
+          rm -rf flutter/build flutter/.dart_tool flutter/.packages || true
+          
+          # Install bridge codegen
           cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+          
           pushd flutter
+          # Update dependencies
           sed -i -e 's/extended_text: 14.0.0/extended_text: ^13.1.0/g' pubspec.yaml
+          flutter clean
           flutter pub get
+          dart pub get
           popd
 
       - name: Run flutter rust bridge
         run: |
           export RUST_BACKTRACE=1
+          # Ensure Dart and Flutter are in PATH
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          flutter precache
           ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
           cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
 
