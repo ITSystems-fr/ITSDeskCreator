@@ -5,6 +5,44 @@ concurrency:
   group: generator-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
+  RUST_VERSION: "1.75" # sciter failed on m1 with 1.78 because of https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
+  MAC_RUST_VERSION: "1.81" 
+  CARGO_NDK_VERSION: "3.1.2"
+  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
+  SCITER_NASM_DEBVERSION: "2.14-1"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  ANDROID_FLUTTER_VERSION: "3.24.5" # >= 3.16 is very slow on my android phone, but work well on most of others. We may switch to new flutter after changing to texture rendering (I believe it can solve my problem).
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"  # for arm64 linux because official Dart SDK does not work
+  FLUTTER_ELINUX_VERSION: "3.16.9"
+  TAG_NAME: "${{ inputs.upload-tag }}"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  # vcpkg version: 2024.07.12
+  VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
+  VERSION: "${{ fromJson(inputs.extras).version }}"
+  NDK_VERSION: "r27c"
+  #signing keys env variable checks
+  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
+  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
+  # To make a custom build with your own servers set the below secret values
+  RS_PUB_KEY: "${{ inputs.key }}"
+  RENDEZVOUS_SERVER: "${{ inputs.server }}"
+  CUSTOM: "${{ inputs.custom }}"
+  UUIDFOLDER: "${{ inputs.uuid }}"
+  API_SERVER: "${{ inputs.apiServer }}"
+  UPLOAD_ARTIFACT: 'true'
+  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
+  STATUS_URL: "${{ secrets.GENURL }}/updategh"
+  CARGO_TERM_COLOR: "always"
+  CARGO_INCREMENTAL: "true"
+  CARGO_NET_RETRY: "10"
+  RUSTC_WRAPPER: "sccache"
+  RUSTFLAGS: "-C target-cpu=native"
+  CARGO_PROFILE_RELEASE_LTO: "thin"
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+
 on: 
   workflow_dispatch:
     inputs:
@@ -59,37 +97,6 @@ on:
         default: '{}'
         type: string
 
-env:
-  SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  RUST_VERSION: "1.75" # sciter failed on m1 with 1.78 because of https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  MAC_RUST_VERSION: "1.81" 
-  CARGO_NDK_VERSION: "3.1.2"
-  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
-  SCITER_NASM_DEBVERSION: "2.14-1"
-  LLVM_VERSION: "15.0.6"
-  FLUTTER_VERSION: "3.24.5"
-  ANDROID_FLUTTER_VERSION: "3.24.5" # >= 3.16 is very slow on my android phone, but work well on most of others. We may switch to new flutter after changing to texture rendering (I believe it can solve my problem).
-  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"  # for arm64 linux because official Dart SDK does not work
-  FLUTTER_ELINUX_VERSION: "3.16.9"
-  TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  # vcpkg version: 2024.07.12
-  VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
-  VERSION: "${{ fromJson(inputs.extras).version }}"
-  NDK_VERSION: "r27c"
-  #signing keys env variable checks
-  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
-  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
-  # To make a custom build with your own servers set the below secret values
-  RS_PUB_KEY: "${{ inputs.key }}"
-  RENDEZVOUS_SERVER: "${{ inputs.server }}"
-  CUSTOM: "${{ inputs.custom }}"
-  UUIDFOLDER: "${{ inputs.uuid }}"
-  API_SERVER: "${{ inputs.apiServer }}"
-  UPLOAD_ARTIFACT: 'true'
-  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
-  STATUS_URL: "${{ secrets.GENURL }}/updategh"
-
 jobs:
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -103,26 +110,54 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - {
-              target: aarch64-apple-darwin,
-              os: macos-latest,
-              # extra-build-args: "--disable-flutter-texture-render", # disable this for mac, because we see a lot of users reporting flickering both on arm and x64, and we can not confirm if texture rendering has better performance if htere is no vram, https://github.com/rustdesk/rustdesk/issues/6296
-              extra-build-args: "--screencapturekit",
-              arch: aarch64,
-              vcpkg-triplet: arm64-osx,
-            }
-
+        include:
+          - target: x86_64-apple-darwin
+            arch: x64
+          - target: aarch64-apple-darwin
+            arch: arm64
+    
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: macos-${{ matrix.target }}
+          cache-directories: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+
+      - name: Cache vcpkg
+        uses: actions/cache@v3
+        with:
+          path: |
+            /usr/local/share/vcpkg/installed
+            /usr/local/share/vcpkg/packages
+          key: ${{ runner.os }}-vcpkg-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-${{ matrix.target }}-
+            ${{ runner.os }}-vcpkg-
+
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
         with:
           script: |
-            core.exportVariable('CARGO_TERM_COLOR', 'always')
             core.exportVariable('CACHE_PREFIX', 'v1')
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -137,20 +172,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
             ${{ runner.os }}-cargo-
-
-      - name: Cache vcpkg
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ github.workspace }}/vcpkg/*
-            !${{ github.workspace }}/vcpkg/.git
-            ${{ github.workspace }}/vcpkg_installed/*
-            ${{ github.workspace }}/vcpkg/downloads
-          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', '**/vcpkg.json') }}-${{ env.VCPKG_COMMIT_ID }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', '**/vcpkg.json') }}-
-            ${{ runner.os }}-vcpkg-${{ env.VCPKG_COMMIT_ID }}-
-            ${{ runner.os }}-vcpkg-
 
       - name: Cache Flutter dependencies
         uses: actions/cache@v3
@@ -185,8 +206,6 @@ jobs:
           method: 'POST'
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "5% complete"}'
-
-      
 
       - name: Checkout source code
         if: ${{ env.VERSION != 'master' }}
