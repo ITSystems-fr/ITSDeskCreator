@@ -128,21 +128,28 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-${{ env.RUST_VERSION }}
           restore-keys: |
+            ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}-
             ${{ runner.os }}-cargo-
 
       - name: Cache vcpkg
         uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/vcpkg
-            ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-vcpkg-${{ env.VCPKG_COMMIT_ID }}
+            ${{ github.workspace }}/vcpkg/*
+            !${{ github.workspace }}/vcpkg/.git
+            ${{ github.workspace }}/vcpkg_installed/*
+            ${{ github.workspace }}/vcpkg/downloads
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', '**/vcpkg.json') }}-${{ env.VCPKG_COMMIT_ID }}
           restore-keys: |
+            ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', '**/vcpkg.json') }}-
+            ${{ runner.os }}-vcpkg-${{ env.VCPKG_COMMIT_ID }}-
             ${{ runner.os }}-vcpkg-
 
       - name: Cache Flutter dependencies
@@ -150,9 +157,15 @@ jobs:
         with:
           path: |
             ~/.pub-cache
+            flutter/.dart_tool
             flutter/build
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+            flutter/.packages
+            flutter/pubspec.lock
+            flutter/.flutter-plugins
+            flutter/.flutter-plugins-dependencies
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('flutter/pubspec.yaml', 'flutter/pubspec.lock') }}
           restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
             ${{ runner.os }}-flutter-
 
       - name: Set rdgen value
