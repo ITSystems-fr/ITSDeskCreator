@@ -16,9 +16,6 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
   VERSION: "${{ fromJson(inputs.extras).version }}"
-  NDK_VERSION: "r27c"
-  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
-  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
   RS_PUB_KEY: "${{ inputs.key }}"
   RENDEZVOUS_SERVER: "${{ inputs.server }}"
   CUSTOM: "${{ inputs.custom }}"
@@ -29,7 +26,7 @@ env:
   STATUS_URL: "${{ secrets.GENURL }}/updategh"
   # Build optimizations
   CARGO_TERM_COLOR: "always"
-  CARGO_INCREMENTAL: "true"
+  CARGO_INCREMENTAL: "0"
   CARGO_NET_RETRY: "10"
   RUSTC_WRAPPER: "sccache"
   RUSTFLAGS: "-C target-cpu=native -C codegen-units=1 -C lto=thin"
@@ -37,6 +34,13 @@ env:
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
   VCPKG_MAX_CONCURRENCY: "8"
   VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
+  VCPKG_DEFAULT_HOST_TRIPLET: "x64-windows-static"
+  VCPKG_ROOT: "C:\\vcpkg"
+  FLUTTER_ROOT: "C:\\hostedtoolcache\\windows\\flutter\\stable-${{ env.FLUTTER_VERSION }}-x64"
+  PUB_CACHE: "C:\\hostedtoolcache\\windows\\flutter\\stable-${{ env.FLUTTER_VERSION }}-x64\\.pub-cache"
+  LLVM_PATH: "C:\\Program Files\\LLVM"
+  LD_LIBRARY_PATH: "C:\\Program Files\\LLVM\\lib"
+  DYLD_LIBRARY_PATH: "C:\\Program Files\\LLVM\\lib"
 
 on: 
   workflow_dispatch:
@@ -135,6 +139,12 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v7
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          vcpkgTriplet: ${{ matrix.vcpkg-triplet }}
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -151,11 +161,11 @@ jobs:
         with:
           path: |
             ${{ github.workspace }}/.vcpkg-cache
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
-          key: ${{ runner.os }}-vcpkg-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}
+            ${{ env.VCPKG_ROOT }}/installed
+            ${{ env.VCPKG_ROOT }}/packages
+          key: ${{ runner.os }}-vcpkg-${{ matrix.vcpkg-triplet }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
-            ${{ runner.os }}-vcpkg-${{ matrix.target }}-
+            ${{ runner.os }}-vcpkg-${{ matrix.vcpkg-triplet }}-
             ${{ runner.os }}-vcpkg-
 
       - name: Cache Flutter
