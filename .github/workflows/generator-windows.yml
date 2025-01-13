@@ -149,10 +149,11 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           vcpkgTriplet: ${{ matrix.vcpkg-triplet }}
           vcpkgArguments: >
-            libvpx:${{ matrix.vcpkg-triplet }}
-            opus:${{ matrix.vcpkg-triplet }}
-            aom:${{ matrix.vcpkg-triplet }}
-            libyuv:${{ matrix.vcpkg-triplet }}
+            --triplet=${{ matrix.vcpkg-triplet }}
+            libvpx
+            opus
+            aom
+            libyuv
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
           setupOnly: false
 
