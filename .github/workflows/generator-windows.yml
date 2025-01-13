@@ -36,6 +36,7 @@ env:
   VCPKG_DEFAULT_BINARY_CACHE: "D:\\a\\creator\\creator\\.vcpkg-cache"
   VCPKG_DEFAULT_HOST_TRIPLET: "x64-windows-static"
   VCPKG_ROOT: "C:\\vcpkg"
+  FFMPEG_INCLUDE_DIR: "C:\\vcpkg\\installed\\x64-windows-static\\include"
   FLUTTER_ROOT: "C:\\hostedtoolcache\\windows\\flutter\\stable-3.24.5-x64"
   PUB_CACHE: "C:\\hostedtoolcache\\windows\\flutter\\stable-3.24.5-x64\\.pub-cache"
   LLVM_PATH: "C:\\Program Files\\LLVM"
@@ -153,7 +154,7 @@ jobs:
       - name: Install vcpkg dependencies
         run: |
           vcpkg/bootstrap-vcpkg.bat
-          vcpkg/vcpkg install libvpx:${{ matrix.vcpkg-triplet }} opus:${{ matrix.vcpkg-triplet }} aom:${{ matrix.vcpkg-triplet }} libyuv:${{ matrix.vcpkg-triplet }}
+          vcpkg/vcpkg install libvpx:${{ matrix.vcpkg-triplet }} opus:${{ matrix.vcpkg-triplet }} aom:${{ matrix.vcpkg-triplet }} libyuv:${{ matrix.vcpkg-triplet }} ffmpeg[core]:${{ matrix.vcpkg-triplet }}
         shell: cmd
 
       - name: Rust cache
