@@ -1,5 +1,43 @@
 name: Custom Windows Client Generator
 run-name: Custom Windows Client Generator
+
+env:
+  SCITER_RUST_VERSION: "1.75"
+  RUST_VERSION: "1.75"
+  CARGO_NDK_VERSION: "3.1.2"
+  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
+  SCITER_NASM_DEBVERSION: "2.14-1"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  ANDROID_FLUTTER_VERSION: "3.24.5" 
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  FLUTTER_ELINUX_VERSION: "3.16.9"
+  TAG_NAME: "${{ inputs.upload-tag }}"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
+  VERSION: "${{ fromJson(inputs.extras).version }}"
+  NDK_VERSION: "r27c"
+  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
+  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
+  RS_PUB_KEY: "${{ inputs.key }}"
+  RENDEZVOUS_SERVER: "${{ inputs.server }}"
+  CUSTOM: "${{ inputs.custom }}"
+  UUIDFOLDER: "${{ inputs.uuid }}"
+  API_SERVER: "${{ inputs.apiServer }}"
+  UPLOAD_ARTIFACT: 'true'
+  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
+  STATUS_URL: "${{ secrets.GENURL }}/updategh"
+  # Build optimizations
+  CARGO_TERM_COLOR: "always"
+  CARGO_INCREMENTAL: "true"
+  CARGO_NET_RETRY: "10"
+  RUSTC_WRAPPER: "sccache"
+  RUSTFLAGS: "-C target-cpu=native -C codegen-units=1 -C lto=thin"
+  CARGO_PROFILE_RELEASE_LTO: "thin"
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+  VCPKG_MAX_CONCURRENCY: "8"
+  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
+
 on: 
   workflow_dispatch:
     inputs:
@@ -54,39 +92,6 @@ on:
         default: '{}'
         type: string
 
-
-env:
-  SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  RUST_VERSION: "1.75" # sciter failed on m1 with 1.78 because of https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  CARGO_NDK_VERSION: "3.1.2"
-  SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
-  SCITER_NASM_DEBVERSION: "2.14-1"
-  LLVM_VERSION: "15.0.6"
-  FLUTTER_VERSION: "3.24.5"
-  ANDROID_FLUTTER_VERSION: "3.24.5" 
-  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
-  # for arm64 linux because official Dart SDK does not work
-  FLUTTER_ELINUX_VERSION: "3.16.9"
-  TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  # vcpkg version: 2024.07.12
-  VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
-  VERSION: "${{ fromJson(inputs.extras).version }}"
-  NDK_VERSION: "r27c"
-  #signing keys env variable checks
-  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
-  MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
-  # To make a custom build with your own servers set the below secret values
-  RS_PUB_KEY: "${{ inputs.key }}"
-  RENDEZVOUS_SERVER: "${{ inputs.server }}"
-  CUSTOM: "${{ inputs.custom }}"
-  UUIDFOLDER: "${{ inputs.uuid }}"
-  API_SERVER: "${{ inputs.apiServer }}"
-  UPLOAD_ARTIFACT: 'true'
-  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
-  STATUS_URL: "${{ secrets.GENURL }}/updategh"
-
-
 jobs:
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -99,29 +104,71 @@ jobs:
       upload-artifact: true
       target: windows-2022
       configuration: Release
-      platform: x64
-      target_version: Windows10
-    strategy:
-      fail-fast: false
 
   build-for-windows-flutter:
     name: Build Windows
     needs: [build-RustDeskTempTopMostWindow, generate-bridge]
-    runs-on: ${{ matrix.job.os }}
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        job:
-          # - { target: i686-pc-windows-msvc        , os: windows-2022                  }
-          # - { target: x86_64-pc-windows-gnu       , os: windows-2022                  }
-          - {
-              target: x86_64-pc-windows-msvc,
-              os: windows-2022,
-              arch: x86_64,
-              vcpkg-triplet: x64-windows-static,
-            }
-          # - { target: aarch64-pc-windows-msvc, os: windows-2022, arch: aarch64 }
+        include:
+          - arch: x64
+            vcpkg-triplet: x64-windows-static
+            target: x86_64-pc-windows-msvc
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: true
+
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-${{ matrix.target }}
+          cache-directories: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+
+      - name: Cache vcpkg
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ github.workspace }}/.vcpkg-cache
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
+          key: ${{ runner.os }}-vcpkg-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-${{ matrix.target }}-
+            ${{ runner.os }}-vcpkg-
+
+      - name: Cache Flutter
+        uses: actions/cache@v3
+        with:
+          path: |
+            %LOCALAPPDATA%\Pub\Cache
+            %APPDATA%\Pub\Cache
+            %USERPROFILE%\AppData\Local\Pub\Cache
+            flutter/build
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('flutter/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
+            ${{ runner.os }}-flutter-
+
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
         with:
@@ -190,7 +237,7 @@ jobs:
             # ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk Remote Desktop"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|VALUE "InternalName", "rustdesk" "\0"|VALUE "InternalName", "${{ inputs.appname }}" "\0"|' ./flutter/windows/runner/Runner.rc
-            sed -i -e 's|"Copyright © 2024 Purslane Ltd. All rights reserved."|"Copyright © 2024"|' ./flutter/windows/runner/Runner.rc
+            sed -i -e 's|"Copyright 2024 Purslane Ltd. All rights reserved."|"Copyright 2024"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"rustdesk.exe"|"${{ inputs.filename }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             # ./src/lang/en.rs
@@ -214,7 +261,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
+          sed -i -e '/const KEY:/,/}/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # ./flutter/pubspec.yaml
           sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
@@ -246,7 +293,7 @@ jobs:
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
       - name: Patch flutter
         continue-on-error: true
