@@ -29,7 +29,7 @@ env:
   CARGO_INCREMENTAL: "0"
   CARGO_NET_RETRY: "10"
   RUSTC_WRAPPER: "sccache"
-  RUSTFLAGS: "-C target-cpu=native -C codegen-units=1 -C lto=thin"
+  RUSTFLAGS: "-C target-cpu=native -C codegen-units=1"
   CARGO_PROFILE_RELEASE_LTO: "thin"
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
   VCPKG_MAX_CONCURRENCY: "8"
