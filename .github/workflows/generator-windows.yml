@@ -143,19 +143,18 @@ jobs:
         run: mkdir -p "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
         shell: bash
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v7
+      - name: Checkout vcpkg
+        uses: actions/checkout@v4
         with:
-          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
-          vcpkgTriplet: ${{ matrix.vcpkg-triplet }}
-          vcpkgArguments: >
-            --triplet=${{ matrix.vcpkg-triplet }}
-            libvpx
-            opus
-            aom
-            libyuv
-          vcpkgDirectory: ${{ github.workspace }}/vcpkg
-          setupOnly: false
+          repository: microsoft/vcpkg
+          path: vcpkg
+          ref: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg/bootstrap-vcpkg.bat
+          vcpkg/vcpkg install libvpx:${{ matrix.vcpkg-triplet }} opus:${{ matrix.vcpkg-triplet }} aom:${{ matrix.vcpkg-triplet }} libyuv:${{ matrix.vcpkg-triplet }}
+        shell: cmd
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
