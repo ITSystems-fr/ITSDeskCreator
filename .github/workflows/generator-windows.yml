@@ -154,8 +154,17 @@ jobs:
       - name: Install vcpkg dependencies
         run: |
           vcpkg/bootstrap-vcpkg.bat
-          vcpkg/vcpkg install libvpx:${{ matrix.vcpkg-triplet }} opus:${{ matrix.vcpkg-triplet }} aom:${{ matrix.vcpkg-triplet }} libyuv:${{ matrix.vcpkg-triplet }} ffmpeg[core]:${{ matrix.vcpkg-triplet }}
+          vcpkg/vcpkg install ffmpeg[core,avcodec,avformat,swscale,avdevice]:${{ matrix.vcpkg-triplet }} libvpx:${{ matrix.vcpkg-triplet }} opus:${{ matrix.vcpkg-triplet }} aom:${{ matrix.vcpkg-triplet }} libyuv:${{ matrix.vcpkg-triplet }}
+          echo "INCLUDE=%INCLUDE%;C:\vcpkg\installed\${{ matrix.vcpkg-triplet }}\include" >> $GITHUB_ENV
+          echo "CPLUS_INCLUDE_PATH=%CPLUS_INCLUDE_PATH%;C:\vcpkg\installed\${{ matrix.vcpkg-triplet }}\include" >> $GITHUB_ENV
+          dir C:\vcpkg\installed\${{ matrix.vcpkg-triplet }}\include\libavutil
+          type C:\vcpkg\installed\${{ matrix.vcpkg-triplet }}\include\libavutil\pixfmt.h
         shell: cmd
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
