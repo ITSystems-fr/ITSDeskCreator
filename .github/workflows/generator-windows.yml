@@ -68,7 +68,7 @@ env:
   # for arm64 linux because official Dart SDK does not work
   FLUTTER_ELINUX_VERSION: "3.16.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
   # vcpkg version: 2024.07.12
   VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
   VERSION: "${{ fromJson(inputs.extras).version }}"
@@ -97,7 +97,6 @@ env:
   VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
   VCPKG_FEATURE_FLAGS: "manifests,versions"
   VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
-  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
 
 
 jobs:
