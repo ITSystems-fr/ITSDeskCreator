@@ -33,7 +33,7 @@ env:
   CARGO_PROFILE_RELEASE_LTO: "thin"
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
   VCPKG_MAX_CONCURRENCY: "8"
-  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
+  VCPKG_DEFAULT_BINARY_CACHE: "D:\\a\\creator\\creator\\.vcpkg-cache"
   VCPKG_DEFAULT_HOST_TRIPLET: "x64-windows-static"
   VCPKG_ROOT: "C:\\vcpkg"
   FLUTTER_ROOT: "C:\\hostedtoolcache\\windows\\flutter\\stable-3.24.5-x64"
@@ -138,6 +138,10 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+
+      - name: Create vcpkg cache directory
+        run: mkdir -p "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
+        shell: bash
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v7
