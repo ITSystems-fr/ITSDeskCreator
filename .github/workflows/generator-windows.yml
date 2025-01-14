@@ -85,17 +85,6 @@ env:
   UPLOAD_ARTIFACT: 'true'
   SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
   STATUS_URL: "${{ secrets.GENURL }}/updategh"
-  CARGO_TERM_COLOR: "always"
-  CARGO_INCREMENTAL: "0"
-  CARGO_NET_RETRY: "10"
-  RUSTC_WRAPPER: "sccache"
-  SCCACHE_GHA_ENABLED: "true"
-  SCCACHE_CACHE_SIZE: "2G"
-  SCCACHE_DIR: "C:\\Users\\runneradmin\\AppData\\Local\\Mozilla\\sccache"
-  SCCACHE_NO_DAEMON: "1"
-  SCCACHE_LOG: "debug"
-  RUSTFLAGS: "-C target-cpu=native"
-  SCCACHE_ERROR_LOG: "/tmp/sccache_log.txt"
 
 
 jobs:
@@ -201,7 +190,7 @@ jobs:
             # ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk Remote Desktop"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|VALUE "InternalName", "rustdesk" "\0"|VALUE "InternalName", "${{ inputs.appname }}" "\0"|' ./flutter/windows/runner/Runner.rc
-            sed -i -e 's|"Copyright 2024 Purslane Ltd. All rights reserved."|"Copyright 2024"|' ./flutter/windows/runner/Runner.rc
+            sed -i -e 's|"Copyright © 2024 Purslane Ltd. All rights reserved."|"Copyright © 2024"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"rustdesk.exe"|"${{ inputs.filename }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             # ./src/lang/en.rs
@@ -225,7 +214,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e '/const KEY:/,/}/d' ./src/common.rs
+          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # ./flutter/pubspec.yaml
           sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
@@ -257,7 +246,7 @@ jobs:
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
       - name: Patch flutter
         continue-on-error: true
@@ -419,45 +408,15 @@ jobs:
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "50% complete, this step takes about 5 minutes, be patient."}'
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
       - name: Build rustdesk
-        shell: pwsh
         run: |
-          # Create sccache directory
-          New-Item -ItemType Directory -Force -Path $env:SCCACHE_DIR
-          
-          # Download and extract usbmmidd
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
-          
-          # Build with debug logging for sccache
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          
-          # Clean up usbmmidd files
-          Remove-Item -Path usbmmidd_v2\Win32 -Recurse -ErrorAction SilentlyContinue
-          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat" -ErrorAction SilentlyContinue
-          
-          # Handle Flutter build output
-          $buildPath = ".\flutter\build\windows\x64\runner\Release"
-          if (Test-Path $buildPath) {
-            Write-Host "Found build at: $buildPath"
-            New-Item -ItemType Directory -Force -Path .\rustdesk
-            Copy-Item "$buildPath\*" -Destination .\rustdesk -Recurse -Force
-            Write-Host "Contents of rustdesk directory:"
-            Get-ChildItem -Path .\rustdesk
-          } else {
-            Write-Host "Searching for build output..."
-            Get-ChildItem -Path .\flutter\build -Recurse | Select-Object FullName
-            throw "Build path $buildPath does not exist"
-          }
-          
-          # Move usbmmidd to rustdesk directory
-          if (Test-Path .\usbmmidd_v2) {
-            Move-Item -Force .\usbmmidd_v2 .\rustdesk
-          }
-          mv -Force .\rustdesk\rustdesk.exe .\rustdesk\${{ inputs.filename }}.exe
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          mv -Force .\usbmmidd_v2 ./rustdesk   
 
       - name: icon stuff
         if: ${{ inputs.iconlink != 'false' }}
@@ -539,10 +498,11 @@ jobs:
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
+          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.filename }}.exe"
+          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.appname }}.exe"
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
@@ -650,3 +610,4 @@ jobs:
           method: 'POST'
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "Generation cancelled, try again"}'
+
