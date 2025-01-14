@@ -95,15 +95,8 @@ env:
   VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
   VCPKG_FEATURE_FLAGS: "manifests,versions"
   VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
-  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
-  # Force static linking for Windows
-  RUSTFLAGS_WINDOWS: "-C target-feature=+crt-static"
   VCPKGRS_DYNAMIC: "0"
   RUST_LOG: "debug"
-  VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
-  VCPKG_FEATURE_FLAGS: "manifests,versions"
-  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
-
 
 jobs:
   generate-bridge:
