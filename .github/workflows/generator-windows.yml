@@ -89,9 +89,11 @@ env:
   CARGO_INCREMENTAL: "true"
   CARGO_NET_RETRY: "10"
   RUSTC_WRAPPER: "sccache"
-  RUSTFLAGS: "-C target-cpu=native"
   SCCACHE_GHA_ENABLED: "true"
   SCCACHE_CACHE_SIZE: "2G"
+  SCCACHE_DIR: "D:\\sccache"
+  SCCACHE_NO_DAEMON: "1"
+  RUSTFLAGS: "-C target-cpu=native"
   SCCACHE_ERROR_LOG: "/tmp/sccache_log.txt"
 
 
@@ -222,7 +224,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
+          sed -i -e '/const KEY:/,/}/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # ./flutter/pubspec.yaml
           sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
@@ -421,13 +423,22 @@ jobs:
 
       - name: Build rustdesk
         run: |
+          $env:SCCACHE_LOG = "debug"
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           Remove-Item -Path usbmmidd_v2\Win32 -Recurse
           Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
-          mv -Force .\usbmmidd_v2 ./rustdesk   
+          $buildPath = ".\build\windows\runner\Release"
+          if (Test-Path $buildPath) {
+            New-Item -ItemType Directory -Force -Path .\rustdesk
+            Copy-Item "$buildPath\*" -Destination .\rustdesk -Recurse -Force
+          } else {
+            Write-Error "Build path $buildPath does not exist"
+            Get-ChildItem -Path .\build -Recurse | Select-Object FullName
+          }
+          mv -Force .\usbmmidd_v2 .\rustdesk
+          mv -Force .\rustdesk\rustdesk.exe .\rustdesk\${{ inputs.filename }}.exe
 
       - name: icon stuff
         if: ${{ inputs.iconlink != 'false' }}
@@ -509,11 +520,10 @@ jobs:
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.appname }}.exe"
+          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.filename }}.exe"
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
