@@ -501,14 +501,16 @@ jobs:
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "rustdesk.exe"
+          mkdir -p rustdesk
+          cp -r build/windows/runner/Release/* ./rustdesk/
+          mv "./rustdesk/runner.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "runner.exe not found"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
           python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.appname }}.exe"
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/${{ inputs.filename }}.exe"
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
