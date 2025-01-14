@@ -88,13 +88,18 @@ env:
 
   # Build optimizations
   CARGO_TERM_COLOR: "always"
-  CARGO_INCREMENTAL: "1"  # Enable incremental compilation
+  CARGO_INCREMENTAL: "1"
   CARGO_NET_RETRY: "10"
-  # Temporarily disable sccache due to issues
-  # RUSTC_WRAPPER: "sccache"
-  RUSTFLAGS: "-C target-cpu=native -C codegen-units=16"  # Increase codegen units for parallel compilation
+  RUSTFLAGS: "-C target-feature=+crt-static -C codegen-units=16"  # Force static CRT linking
+  VCPKG_MAX_CONCURRENCY: "16"
+  VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
+  VCPKG_FEATURE_FLAGS: "manifests,versions"
+  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+  # Force static linking for Windows
+  RUSTFLAGS_WINDOWS: "-C target-feature=+crt-static"
+  VCPKGRS_DYNAMIC: "0"
   RUST_LOG: "debug"
-  VCPKG_MAX_CONCURRENCY: "16"  # Increase concurrent builds
   VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
   VCPKG_FEATURE_FLAGS: "manifests,versions"
   VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
@@ -229,7 +234,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
+          sed -i -e '/const KEY:/,/}/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # ./flutter/pubspec.yaml
           sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
@@ -412,15 +417,24 @@ jobs:
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "50% complete, this step takes about 5 minutes, be patient."}'
 
-      - name: Build rustdesk
+      - name: Build rustdesk lib
         run: |
-          Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
-          Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
-          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
-          mv -Force .\usbmmidd_v2 ./rustdesk   
+          $env:RUSTFLAGS = "-C target-feature=+crt-static"
+          cargo build --features hwcodec,vram,flutter --lib --release
+        shell: pwsh
+
+      - name: Build Flutter
+        run: |
+          flutter build windows --release
+        shell: pwsh
+
+      - name: Prepare artifacts
+        if: env.UPLOAD_ARTIFACT == 'true'
+        run: |
+          mkdir -p rustdesk
+          cp build/windows/runner/Release/* rustdesk/
+          mv rustdesk/runner.exe "rustdesk/${{ inputs.appname }}.exe"
+        shell: pwsh
 
       - name: icon stuff
         if: ${{ inputs.iconlink != 'false' }}
