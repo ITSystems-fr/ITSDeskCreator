@@ -68,7 +68,7 @@ env:
   # for arm64 linux because official Dart SDK does not work
   FLUTTER_ELINUX_VERSION: "3.16.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   # vcpkg version: 2024.07.12
   VCPKG_COMMIT_ID: "b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c"
   VERSION: "${{ fromJson(inputs.extras).version }}"
@@ -86,24 +86,12 @@ env:
   SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
   STATUS_URL: "${{ secrets.GENURL }}/updategh"
 
-  # Build optimizations
-  CARGO_TERM_COLOR: "always"
-  CARGO_INCREMENTAL: "1"
-  CARGO_NET_RETRY: "10"
-  RUSTFLAGS: "-C target-feature=+crt-static -C codegen-units=16"  # Force static CRT linking
-  VCPKG_MAX_CONCURRENCY: "16"
-  VCPKG_KEEP_ENV_VARS: "INCLUDE;CXX;CC;VCPKG_ROOT;PATH"
-  VCPKG_FEATURE_FLAGS: "manifests,versions"
-  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-cache"
-  VCPKGRS_DYNAMIC: "0"
-  RUST_LOG: "debug"
 
 jobs:
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
     with:
       version: ${{ fromJson(inputs.extras).version }}
-    secrets: inherit
 
   build-RustDeskTempTopMostWindow:
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
@@ -119,8 +107,7 @@ jobs:
   build-for-windows-flutter:
     name: Build Windows
     needs: [build-RustDeskTempTopMostWindow, generate-bridge]
-    runs-on: windows-2022  # Use windows-2022 for better performance
-    timeout-minutes: 120   # Add timeout to prevent hung builds
+    runs-on: ${{ matrix.job.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -203,7 +190,7 @@ jobs:
             # ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk Remote Desktop"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|VALUE "InternalName", "rustdesk" "\0"|VALUE "InternalName", "${{ inputs.appname }}" "\0"|' ./flutter/windows/runner/Runner.rc
-            sed -i -e 's|"Copyright 2024 Purslane Ltd. All rights reserved."|"Copyright 2024"|' ./flutter/windows/runner/Runner.rc
+            sed -i -e 's|"Copyright © 2024 Purslane Ltd. All rights reserved."|"Copyright © 2024"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"rustdesk.exe"|"${{ inputs.filename }}"|' ./flutter/windows/runner/Runner.rc
             sed -i -e 's|"RustDesk"|"${{ inputs.appname }}"|' ./flutter/windows/runner/Runner.rc
             # ./src/lang/en.rs
@@ -227,7 +214,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e '/const KEY:/,/}/d' ./src/common.rs
+          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
           sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
           # ./flutter/pubspec.yaml
           sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
@@ -259,7 +246,7 @@ jobs:
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
       - name: Patch flutter
         continue-on-error: true
@@ -299,18 +286,29 @@ jobs:
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
         with:
+          vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
-          vcpkgJsonGlob: '**/vcpkg.json'
-          appendedCacheKey: ${{ hashFiles('**/vcpkg.json') }}
-          
+
       - name: Install vcpkg dependencies
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
         run: |
-          $ErrorActionPreference = 'Continue'
-          vcpkg/vcpkg install --triplet=${{ matrix.job.vcpkg-triplet }} --x-install-root="$env:VCPKG_ROOT/installed" --clean-after-build
-        shell: pwsh
+          if ! $VCPKG_ROOT/vcpkg \
+            install \
+            --triplet ${{ matrix.job.vcpkg-triplet }} \
+            --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              echo "======"
+              cat "$_1"
+              echo "======"
+              echo ""
+            done
+            exit 1
+          fi
+          head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+        shell: bash
 
       - name: icon stuff
         if: ${{ inputs.iconlink != 'false' }}
@@ -410,24 +408,15 @@ jobs:
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "50% complete, this step takes about 5 minutes, be patient."}'
 
-      - name: Build rustdesk lib
+      - name: Build rustdesk
         run: |
-          $env:RUSTFLAGS = "-C target-feature=+crt-static"
-          cargo build --features hwcodec,vram,flutter --lib --release
-        shell: pwsh
-
-      - name: Build Flutter
-        run: |
-          flutter build windows --release
-        shell: pwsh
-
-      - name: Prepare artifacts
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
-          mkdir -p rustdesk
-          cp build/windows/runner/Release/* rustdesk/
-          mv rustdesk/runner.exe "rustdesk/${{ inputs.appname }}.exe"
-        shell: pwsh
+          Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+          Expand-Archive usbmmidd_v2.zip -DestinationPath . -Force
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          mv -Force .\usbmmidd_v2 ./rustdesk   
 
       - name: icon stuff
         if: ${{ inputs.iconlink != 'false' }}
@@ -509,16 +498,14 @@ jobs:
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          mkdir -p rustdesk
-          cp -r ./build/windows/x64/runner/Release/* ./rustdesk/ || ls -la ./build/windows/
-          mv "./rustdesk/runner.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "runner.exe not found"
+          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
           python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ inputs.appname }}.exe"
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/${{ inputs.filename }}.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
@@ -623,3 +610,4 @@ jobs:
           method: 'POST'
           customHeaders: '{"Content-Type": "application/json"}'
           data: '{"uuid": "${{ inputs.uuid }}", "status": "Generation cancelled, try again"}'
+
