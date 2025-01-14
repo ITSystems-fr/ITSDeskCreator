@@ -90,7 +90,8 @@ env:
   CARGO_TERM_COLOR: "always"
   CARGO_INCREMENTAL: "1"  # Enable incremental compilation
   CARGO_NET_RETRY: "10"
-  RUSTC_WRAPPER: "sccache"
+  # Temporarily disable sccache due to issues
+  # RUSTC_WRAPPER: "sccache"
   RUSTFLAGS: "-C target-cpu=native -C codegen-units=16"  # Increase codegen units for parallel compilation
   RUST_LOG: "debug"
   VCPKG_MAX_CONCURRENCY: "16"  # Increase concurrent builds
@@ -502,7 +503,7 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           mkdir -p rustdesk
-          cp -r build/windows/runner/Release/* ./rustdesk/
+          cp -r ./build/windows/x64/runner/Release/* ./rustdesk/ || ls -la ./build/windows/
           mv "./rustdesk/runner.exe" "./rustdesk/${{ inputs.appname }}.exe" || echo "runner.exe not found"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
